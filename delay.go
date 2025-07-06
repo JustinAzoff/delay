@@ -11,27 +11,43 @@ import (
 )
 
 func DelayServer(w http.ResponseWriter, r *http.Request) {
-	delayString := r.PathValue("delay")
-	delay, err := strconv.Atoi(delayString)
+	var keepalive time.Duration
+	count := uint64(1)
+	keepalive = -1
+
+	// Delay is required
+	delayString := r.FormValue("delay")
+	delay, err := strconv.ParseUint(delayString, 10, 0)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "Invalid or missing delay argument\n")
 		return
 	}
 
-	var keepalive time.Duration
-	keepalive = -1
-
+	// keepalive is optional, defaults to disabled
 	keepAliveString := r.FormValue("keepalive")
 	if keepAliveString != "" {
 		keepaliveSeconds, err := strconv.ParseUint(keepAliveString, 10, 0)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, "Invalid keepalive argument\n")
+			return
 		}
 		keepalive = time.Duration(keepaliveSeconds) * time.Second
 	}
-	log.Printf("GET: %s delay: %v. keepalive: %v", r.RemoteAddr, delay, keepalive)
+
+	// count is optional, defaults to 1
+	countString := r.FormValue("count")
+	if countString != "" {
+		count, err = strconv.ParseUint(countString, 10, 0)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "Invalid count argument\n")
+			return
+		}
+	}
+
+	log.Printf("GET: %s delay: %v. keepalive: %v. count: %v", r.RemoteAddr, delay, keepalive, count)
 
 	hj, ok := w.(http.Hijacker)
 	if !ok {
@@ -46,7 +62,6 @@ func DelayServer(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// You can now access the underlying net.Conn and its methods
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		log.Println("Not a TCP connection")
@@ -64,9 +79,20 @@ func DelayServer(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	time.Sleep(time.Duration(delay) * time.Second)
-	fmt.Fprintf(rw, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDelayed for %d seconds\r\n", delay)
+	// At this point we hijacked the socket so we need to speak http ourself.
+
+	fmt.Fprintf(rw, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n")
 	rw.Flush()
+
+	for i := range count {
+		time.Sleep(time.Duration(delay) * time.Second)
+		fmt.Fprintf(rw, "# %d %s Delayed for %d seconds\r\n", i+1, time.Now().Format(time.DateTime), delay)
+		err := rw.Flush()
+		if err != nil {
+			log.Println("Failed to Flush: %v", err)
+			return
+		}
+	}
 }
 
 func main() {
@@ -75,7 +101,7 @@ func main() {
 		port = "8080"
 	}
 
-	http.HandleFunc("/delay/{delay}", DelayServer)
+	http.HandleFunc("/", DelayServer)
 	log.Println("listening on", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
