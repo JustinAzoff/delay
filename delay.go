@@ -89,7 +89,7 @@ func DelayServer(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(rw, "# %d %s Delayed for %d seconds\r\n", i+1, time.Now().Format(time.DateTime), delay)
 		err := rw.Flush()
 		if err != nil {
-			log.Println("Failed to Flush: %v", err)
+			log.Printf("Failed to Flush: %v", err)
 			return
 		}
 	}
