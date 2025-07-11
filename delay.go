@@ -17,12 +17,14 @@ func DelayServer(w http.ResponseWriter, r *http.Request) {
 
 	// Delay is required
 	delayString := r.FormValue("delay")
-	delay, err := strconv.ParseUint(delayString, 10, 0)
+	delay, err := strconv.ParseFloat(delayString, 64)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "Invalid or missing delay argument\n")
 		return
 	}
+	delayTime := time.Duration(delay * float64(time.Second))
+	log.Printf("delayTime: %+v", delayTime)
 
 	// keepalive is optional, defaults to disabled
 	keepAliveString := r.FormValue("keepalive")
@@ -85,8 +87,8 @@ func DelayServer(w http.ResponseWriter, r *http.Request) {
 	rw.Flush()
 
 	for i := range count {
-		time.Sleep(time.Duration(delay) * time.Second)
-		fmt.Fprintf(rw, "# %d %s Delayed for %d seconds\r\n", i+1, time.Now().Format(time.DateTime), delay)
+		time.Sleep(delayTime)
+		fmt.Fprintf(rw, "# %d %s Delayed for %v seconds\r\n", i+1, time.Now().Format(time.DateTime), delay)
 		err := rw.Flush()
 		if err != nil {
 			log.Printf("Failed to Flush: %v", err)
