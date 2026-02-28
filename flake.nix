@@ -30,6 +30,32 @@
         }
       );
 
+      checks = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          integration = pkgs.testers.nixosTest {
+            name = "delay";
+
+            nodes.machine =
+              { ... }:
+              {
+                imports = [ self.nixosModules.default ];
+                services.delay.enable = true;
+                services.delay.port = 8080;
+              };
+
+            testScript = ''
+              machine.wait_for_unit("delay.service")
+              machine.wait_for_open_port(8080)
+              machine.succeed("curl -s 'http://localhost:8080/?delay=0.1&count=1' | grep -q 'Delayed'")
+            '';
+          };
+        }
+      );
+
       nixosModules.default =
         {
           config,
