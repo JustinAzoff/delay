@@ -84,7 +84,7 @@
               after = [ "network.target" ];
 
               serviceConfig = {
-                ExecStart = "${self.packages.${pkgs.system}.default}/bin/delay";
+                ExecStart = "${self.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/delay";
                 Restart = "always";
                 RestartSec = 5;
                 DynamicUser = true;
